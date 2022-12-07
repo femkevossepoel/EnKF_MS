@@ -5,6 +5,9 @@ program main
    use m_readinfile                        ! Reading infile.in
    use m_set_random_seed2                  ! Sets new random seed unless 'seed.dat' exists
    use m_model                             ! Model time stepping
+!#ifdef ZEROD
+!   use m_recharge_osc                      ! Zero-D recharge oscillator ! not needed, is in m_model
+!#endif
    use m_pseudo1D                          ! Samples pseudo-random fields in 1-D
    use m_fixsample1D                       ! Ensures zero mean and unit variance of sampled ensembles
    use m_obsxloc                           ! Computes x position of measurements
@@ -22,6 +25,10 @@ program main
    use m_windowstat                        ! Compute ensemble mean and variance in a DA window (from win)
    use m_covstat                           ! Computes space time covariances in case you have a lot of memory
    use m_gnuplot                           ! Generate space time plots for plotting in gnuplot (c.gnu)
+#ifdef ZEROD
+   use ro_constants                        ! Constants for recharge oscillator
+   use parameter_functions                 ! Functions for recharge oscillator
+#endif
    implicit none
 
    type(state), allocatable :: full(:,:)   ! The ensemble of realizations over the whole simulation
@@ -30,13 +37,21 @@ program main
    type(state), allocatable :: mem(:)      ! The ensemble of realizations
    type(state), allocatable :: old(:)      ! The ensemble of realizations in previous time step used in Leapfrog
    type(state), allocatable :: sysnoise(:) ! The ensemble of sampled system noise updated every timestep
+#ifdef ZEROD
+   real, allocatable :: randat(:) ! randomized vector to add to intial conditions for initialisation atmosphere
+   real, allocatable :: randoc(:) ! randomized vector to add to intial conditions for initialisation ocean
+#endif
    type(state) ana                         ! analytical solution
    type(state) anaold                      ! analytical solution in previous time step used in Leapfrog
    type(state) ave                         ! ensemble average
    type(state) var                         ! ensemble variance
    type(state) cov(2)                      ! ensemble covariance for two points
 
+#ifdef ZEROD
+   real, allocatable :: samples(:)       ! work array used when sampling in random
+#else
    real, allocatable :: samples(:,:)       ! work array used when sampling in pseudo1D
+#endif
 
 ! Spacew time statistics diagnostic variables
    type(state), allocatable :: mean(:)     ! ensemble average as a function of space and time
@@ -93,7 +108,13 @@ program main
    allocate (mem(nrens))
    allocate (old(nrens))
    allocate (sysnoise(nrens))
+#ifdef ZEROD
+   allocate (samples(nrens))
+   allocate (randat(nx))
+   allocate (randoc(nx))
+#else
    allocate (samples(nx,nrens))
+#endif
 
    allocate (obsoloc(nro))
    allocate (obsaloc(nra))
@@ -110,6 +131,8 @@ program main
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Uniformly distributed measurements for ocean and atmosphere in space and time
+! note, for ZEROD this nro and nra have to be 1
+!
    print *,'Ocean observation locations'
    call obsxloc(nro,obsoloc)
    call obstloc(nrt,obst0o,obsdto,obsotimes)
@@ -123,29 +146,78 @@ program main
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! The true solution smooth pseudo random field drawn from  N(0,1,rh).
+! FV Here, I initialize the truth (analytical solution)
+!
+#ifdef ZEROD
+! CHECK?
+   ana%ocean=ocheight_0
+   ana%atmos=sstemp_0
+   print *,'main: ana ok'
+#else
    call pseudo1D(ana%ocean,nx,1,rh%ocean,dx,nx)
    call pseudo1D(ana%atmos,nx,1,rh%atmos,dx,nx)
    print *,'main: ana ok'
+#endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! First guess solution stored in ave
+#ifdef ZEROD
+   call random(randat,nx)
+   ! this only works if randat has nx=1
+   ave%atmos=ave%atmos+randat(1)
+   call random(randoc,nx)
+   ave%ocean=ave%ocean+randoc(1)
+   ! add random to truth
+   ave=(ave + ana)*(1.0/sqrt(2.0))
+!   print *,'need to change this', ave%ocean, nx, rh%ocean, dx
+#else
    call pseudo1D(ave%ocean,nx,1,rh%ocean,dx,nx)
    call pseudo1D(ave%atmos,nx,1,rh%atmos,dx,nx)
+   ! sqrt 2 to maintain correct variance
    ave=(ave + ana)*(1.0/sqrt(2.0))
    print *,'main: fg ok'
+#endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Open output file -obsolete
+!
+!#ifdef ZEROD
+!!
+!    print '(a,i4,a,f10.2,a,f10.2,a,f10.2,a,i10)','nop= ',nop,', dtro=',dtro,'epsilon=',eps,' mu=',mu,' nrw ',nrw
+!    open(10,file='solution_ro.dat')
+!    write(10,'(3a11)')'         t','  Height_Oc','  SST_Atmos'
+!#endif
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Initialization of ensemble
+!
+
+#ifdef ZEROD
+   call random(samples,nx)
+#else
    call pseudo1D(samples,nx,nrens,rh%ocean,dx,nx)
    if (samp_fix) call fixsample1D(samples,nx,nrens)
+#endif
    do j=1,nrens
+#ifdef ZEROD
+! ensemble mean should be some sample
+      mem(j)%ocean=ocheight_0+samples(j)
+#else
       mem(j)%ocean(1:nx)=samples(1:nx,j)
+#endif
    enddo
 
+#ifdef ZEROD
+   call random(samples,nx)
+#else
    call pseudo1D(samples,nx,nrens,rh%atmos,dx,nx)
    if (samp_fix) call fixsample1D(samples,nx,nrens)
+#endif
    do j=1,nrens
+#ifdef ZEROD
+      mem(j)%atmos=sstemp_0+samples(j)
+#else
       mem(j)%atmos(1:nx)=samples(1:nx,j)
+#endif
    enddo
 
    do j=1,nrens
@@ -156,8 +228,11 @@ program main
 
    nrobs=0
    call ensemblemean(mem,ave,nrens)
+   print *,'main: ensemble mean ok'
    call ensemblevariance(mem,ave,var,nrens)
+   print *,'main: ensemble variance ok'
    call ensemblecovariance(mem,ave,cov,nrens)
+   print *,'main: ensemble covariance ok'
    call dumpsol(time,ana,ave,var,cov,nx,dx,obs,nrobs,mem,nrens,outdir,'I')
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -169,25 +244,57 @@ program main
       tini=(l-1)*nrw                                  ! time at beginning of assimilation window
       tfin=l*nrw                                      ! time at end of assimilation window
       print '(a,i3.3,a,i5.5,a,i5.5)','DA window number ',l,' running from ',tini,' to ',tfin
+#ifdef ZEROD
+      leuler=.false.                                   ! first timestep of each window is Euler step
+#else
       leuler=.true.                                   ! first timestep of each window is Euler step
+#endif
       do k=1,nrw                                      ! timestep loop over assimilation window
          if (k>1) leuler=.false.
          time=real((l-1)*nrw+k)
          print '(a,f10.2,a,i3,a,i4,a,l1)','time= ',time,', window=',l,', timestep=',k,' Euler step=',leuler
 
-
 ! Advection
          do j=1,nrens
-            call model(mem(j),old(j),leuler)
+#ifdef ZEROD
+           call recharge_osc(mem(j), old(j), leuler, time)
+#else
+           call model(mem(j),old(j),leuler)
+#endif
          enddo
-         call model(ana,anaold,leuler)
+#ifdef ZEROD
+           call recharge_osc(ana, anaold, leuler, time)
+#else
+           call model(ana,anaold,leuler)
+#endif
 
+#ifdef ZEROD
+! System noise
+         if (sysvar%ocean > 0.0) then
+            call pseudo1D(samples,nx,nrens,rh%ocean,dx,nx)
+            if (samp_fix) call fixsample1D(samples,nx,nrens)
+            do j=1,nrens
+! FV do I need to use dtro for ZEROD?
+               mem(j)%ocean=mem(j)%ocean+sqrt(2.0*sysvar%ocean*dt)*samples(j)
+            enddo
+         endif
+         if (sysvar%atmos > 0.0) then
+            call pseudo1D(samples,nx,nrens,rh%atmos,dx,nx)
+            if (samp_fix) call fixsample1D(samples,nx,nrens)
+            do j=1,nrens
+! FV do I need to use dtro for ZEROD?
+               mem(j)%atmos=mem(j)%atmos+sqrt(2.0*sysvar%atmos*dt)*samples(j)
+            enddo
+         endif
+
+#else
 ! System noise
          if (sysvar%ocean > 0.0) then
             call pseudo1D(samples,nx,nrens,rh%ocean,dx,nx)
             if (samp_fix) call fixsample1D(samples,nx,nrens)
             do j=1,nrens
                mem(j)%ocean=mem(j)%ocean+sqrt(2.0*sysvar%ocean*dt)*samples(:,j)
+! FV do I need to use dtro for ZEROD?
             enddo
          endif
          if (sysvar%atmos > 0.0) then
@@ -195,6 +302,7 @@ program main
             if (samp_fix) call fixsample1D(samples,nx,nrens)
             do j=1,nrens
                mem(j)%atmos=mem(j)%atmos+sqrt(2.0*sysvar%atmos*dt)*samples(:,j)
+! FV do I need to use dtro for ZEROD?
             enddo
          endif
 
@@ -207,11 +315,18 @@ program main
             call  shfilt(nsh,sh,nx,x,1,y,1,nsh)
             mem(j)%atmos=y
          endif
+#endif
 
 ! Store ensemble and reference solution for window
          win(k,:)=mem(:)
          winana(k)=ana
       enddo
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Close output file -obsolete
+!
+!#ifdef ZEROD
+!      close(10)
+!#endif
 
 
 ! Counting the number of measurements in the current DA window

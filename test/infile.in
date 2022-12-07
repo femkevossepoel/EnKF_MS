@@ -17,8 +17,8 @@
  0.3                              ! Measurement standard deviation for ocean measurements
  0.3                              ! Measurement standard deviation for atmos measurements
 #3 Measurements -------------------------------------------------------------------------------------------------
- 21                               ! Number of ocean observations
- 11                               ! Number of atmos observations
+ 1                               ! Number of ocean observations
+ 1                               ! Number of atmos observations
  10                               ! Time of first batch of ocean observations
  10                               ! Time of first batch of atmos observations
  20                               ! Time between ocean observations
@@ -32,4 +32,4 @@
  F                                ! Random rotation in SQRT schemes
  0 1.01                           ! Multiplicative inflation and inflation factor
  0 10.0 0.2                       ! Localization (0-none, 1-distance, 2-adaptive), obs_radius
- Exp0                             ! Output directory
+ zerod                             ! Output directory

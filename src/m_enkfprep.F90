@@ -49,12 +49,22 @@ subroutine enkfprep(mem,obs,S,E,D,meanS,R,innov,winana,win,nrobs,lwin,tini,tfin,
                m2=m+nro
                do mm=1,nro
                   m=m+1
+                  #ifdef  ZEROD
+                  obs(m)%tloc=obsotimes(i)
+                  obs(m)%var=obsvar%ocean
+                  obs(m)%observed='ocean'
+                  ! FV no xloc
+                  obs(m)%d=winana(k)%ocean + sqrt(obsvar%ocean)*tmpo(mm)
+                  S(m,:) = win(k,:)%ocean
+                  print *,'check zeroD atmos',mm, tmpo(mm), m,winana(k)%ocean
+                  #else
                   obs(m)%xloc=obsoloc(mm)
                   obs(m)%tloc=obsotimes(i)
                   obs(m)%var=obsvar%ocean
                   obs(m)%observed='ocean'
                   obs(m)%d=winana(k)%ocean(obs(m)%xloc) + sqrt(obsvar%ocean)*tmpo(mm)
                   S(m,:) = win(k,:)%ocean(obs(m)%xloc)
+                  #endif
                enddo
 
                if (trim(covmodel) == 'diagonal') then
@@ -88,12 +98,21 @@ subroutine enkfprep(mem,obs,S,E,D,meanS,R,innov,winana,win,nrobs,lwin,tini,tfin,
                m2=m+nra
                do mm=1,nra
                   m=m+1
+                  #ifdef  ZEROD
+                  obs(m)%tloc=obsatimes(i)
+                  obs(m)%var=obsvar%atmos
+                  obs(m)%observed='atmos'
+                  obs(m)%d=winana(k)%atmos + sqrt(obsvar%atmos)*tmpa(mm)
+                  S(m,:) = win(k,:)%atmos
+                  print *,'check zeroD atmos',mm, tmpo(mm), m,winana(k)%atmos
+                  #else
                   obs(m)%xloc=obsaloc(mm)
                   obs(m)%tloc=obsatimes(i)
                   obs(m)%var=obsvar%atmos
                   obs(m)%observed='atmos'
                   obs(m)%d=winana(k)%atmos(obs(m)%xloc) + sqrt(obsvar%atmos)*tmpa(mm)
                   S(m,:) = win(k,:)%atmos(obs(m)%xloc)
+                  #endif
                enddo
 
                if (trim(covmodel) == 'diagonal') then

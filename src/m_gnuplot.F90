@@ -13,7 +13,11 @@ subroutine gnuplot(fname,variable,nrt,outdir)
    open(10,file=trim(outdir)//'/'//trim(fname)//'o.dat')
       write(10,'(1025i5)')nx,(i,i=1,nx)
       do k=0,nrt
+         #ifdef ZEROD
+         write(10,'(i5,1024g12.4)')k,variable(k)%ocean
+         #else
          write(10,'(i5,1024g12.4)')k,variable(k)%ocean(:)
+         #endif
       enddo
    close(10)
 
@@ -21,7 +25,11 @@ subroutine gnuplot(fname,variable,nrt,outdir)
    open(10,file=trim(outdir)//'/'//trim(fname)//'a.dat')
       write(10,'(1025i5)')nx,(i,i=1,nx)
       do k=0,nrt
+         #ifdef ZEROD
+         write(10,'(i5,1024g12.4)')k,variable(k)%atmos
+         #else
          write(10,'(i5,1024g12.4)')k,variable(k)%atmos(:)
+         #endif
       enddo
    close(10)
 

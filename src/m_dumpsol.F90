@@ -35,11 +35,19 @@ subroutine dumpsol(time,ana,ave,var,cov,nx,dx,obs,nrobs,mem,nrens,outdir,xx)
                                       ' Cov1_Ocean',' Cov1_Atmos',&
                                       ' Cov2_Ocean',' Cov2_Atmos'
       do i=1,nx
+#ifdef ZEROD
+         write(10,'(11f11.4)')real(i-1)*dx,ana%ocean,ana%atmos,&
+                                           ave%ocean,ave%atmos,&
+                                           std%ocean,std%atmos,&
+                                           cov(1)%ocean,cov(1)%atmos,&
+                                           cov(2)%ocean,cov(2)%atmos
+#else
          write(10,'(11f11.4)')real(i-1)*dx,ana%ocean(i),ana%atmos(i),&
                                            ave%ocean(i),ave%atmos(i),&
                                            std%ocean(i),std%atmos(i),&
                                            cov(1)%ocean(i),cov(1)%atmos(i),&
                                            cov(2)%ocean(i),cov(2)%atmos(i)
+#endif
       enddo
    close(10)
 
