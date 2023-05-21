@@ -1,5 +1,4 @@
 F90SOURCE = \
-	main.F90\
 	m_covstat.F90\
 	m_dumpsol.F90\
 	m_enkfprep.F90\
@@ -12,13 +11,14 @@ F90SOURCE = \
 	m_obspoints.F90\
 	m_obstloc.F90\
 	m_obsxloc.F90\
-	mod_dimensions.F90\
-	mod_observation.F90\
-	mod_shapiro.F90\
-	mod_state.F90\
 	m_readinfile.F90\
 	m_set_random_seed2.F90\
 	m_statistics.F90\
 	m_tecfld.F90\
-	m_windowstat.F90
+	m_windowstat.F90\
+	main.F90\
+	mod_dimensions.F90\
+	mod_observation.F90\
+	mod_shapiro.F90\
+	mod_state.F90
 
